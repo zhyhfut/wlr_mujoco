@@ -56,6 +56,14 @@ class MuJoCoNode(Node):
         self.m = mujoco.MjModel.from_xml_path(mp)
         self.d = mujoco.MjData(self.m)
 
+        # Joint/sensor indices (must be set before _q() is called)
+        self.jq = {}
+        self.jv = {}
+        for n in NAMES:
+            jid = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_JOINT, n)
+            self.jq[n] = self.m.jnt_qposadr[jid]
+            self.jv[n] = self.m.jnt_dofadr[jid]
+
         # Set standing pose
         for s in ['L', 'R']:
             sgn = 1 if s == 'L' else -1
@@ -63,14 +71,6 @@ class MuJoCoNode(Node):
             self.d.qpos[self._q(f'{s}_knee_j')] = KNEE0 * sgn
 
         mujoco.mj_forward(self.m, self.d)
-
-        # Joint/sensor indices
-        self.jq = {}
-        self.jv = {}
-        for n in NAMES:
-            jid = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_JOINT, n)
-            self.jq[n] = self.m.jnt_qposadr[jid]
-            self.jv[n] = self.m.jnt_dofadr[jid]
 
         sa = self.m.sensor_adr
         self.qa = sa[mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_SENSOR, 'quat')]
