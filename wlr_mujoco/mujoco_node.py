@@ -209,8 +209,25 @@ class MuJoCoNode(Node):
 
 
 def main(args=None):
+    import sys
+    visual = '--visual' in sys.argv or '-v' in sys.argv
+
     rclpy.init(args=args)
     n = MuJoCoNode()
+
+    viewer = None
+    if visual:
+        import os as _os
+        if not _os.environ.get('DISPLAY') and not _os.environ.get('WAYLAND_DISPLAY'):
+            print('[mujoco_sim] No display, running headless', flush=True)
+        else:
+            try:
+                import mujoco.viewer
+                viewer = mujoco.viewer.launch_passive(n.m, n.d)
+                print('[mujoco_sim] Viewer opened', flush=True)
+            except Exception as e:
+                print(f'[mujoco_sim] Viewer failed ({e}), running headless', flush=True)
+
     import time as _time
     try:
         nt = _time.monotonic()
@@ -220,6 +237,8 @@ def main(args=None):
             cb_counter += 1
             if cb_counter % 5 == 0:
                 rclpy.spin_once(n, timeout_sec=0)
+            if viewer is not None and cb_counter % 10 == 0:
+                viewer.sync()
             nt += n.dt
             sl = nt - _time.monotonic()
             if sl > 0:

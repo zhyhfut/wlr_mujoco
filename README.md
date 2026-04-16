@@ -25,9 +25,14 @@ source install/setup.bash
 # 先清理旧进程
 pkill -9 -f mujoco_node; pkill -9 -f 'ros2 launch'; sleep 1
 
-# 启动仿真
+# 无头模式（终端运行，无可视窗口）
 ros2 launch wlr_mujoco sim.launch.py
+
+# 可视模式（弹出 MuJoCo Viewer 窗口，需要图形界面）
+ros2 launch wlr_mujoco sim_visual.launch.py
 ```
+
+可视模式会在弹窗中显示机器人的物理仿真效果，可以旋转/缩放视角。
 
 ## 测试平衡效果
 
@@ -126,7 +131,8 @@ wlr_mujoco/
 ├── model/
 │   └── wlr_robot.xml            # MuJoCo MJCF 模型
 ├── launch/
-│   └── sim.launch.py            # 启动文件
+│   ├── sim.launch.py            # 无头模式启动文件
+│   └── sim_visual.launch.py     # 可视模式启动文件
 ├── wlr_mujoco/
 │   ├── __init__.py              # 包初始化
 │   └── mujoco_node.py           # 仿真节点 + 控制器

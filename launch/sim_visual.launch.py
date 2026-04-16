@@ -24,6 +24,7 @@ def generate_launch_description():
             'sim_rate': 1000.0,
             'pub_rate': 200.0,
         }],
+        arguments=['--visual'],
         output='screen',
     )
 
