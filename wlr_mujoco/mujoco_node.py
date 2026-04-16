@@ -71,6 +71,8 @@ class MuJoCoNode(Node):
         w, x, y, z = q
         pitch = math.asin(max(-1, min(1, 2 * (w * y - z * x))))
         dpitch = self.d.sensordata[self.ga + 1]
+        body_z = self.d.xpos[self.base_id][2]
+        z_err = 0.20 - body_z
 
         ctrl = np.zeros(6)
         for si, side in enumerate(['L', 'R']):
@@ -80,15 +82,15 @@ class MuJoCoNode(Node):
             wv = self.d.qvel[self.jv[f'{side}_wheel_j']]
             hip_v = self.d.qvel[self.jv[f'{side}_hip_j']]
 
-            # Wheel: inverted pendulum pitch control
-            wheel_t = -80 * pitch - 10 * dpitch - 0.5 * wv
+            # Wheel: pitch control
+            wheel_t = -40 * pitch - 10 * dpitch - 0.5 * wv
             wheel_t += self.speed * 5 + self.yaw * 2 * sgn
 
             # Hip: passive damping
             hip_t = -10 * hip_v
 
-            # Knee: keep straight
-            knee_t = 200 * (0 - knee) - 30 * knee_v - 2.0
+            # Knee: keep straight + height control
+            knee_t = 200 * (0 - knee) - 30 * knee_v - 2.0 + 150 * z_err
 
             hip_t = max(-10, min(10, hip_t))
             knee_t = max(-30, min(30, knee_t))
@@ -166,7 +168,8 @@ def main(args=None):
         while rclpy.ok():
             n._step()
             cb_counter += 1
-            if cb_counter % 5 == 0:
+            # Process ROS callbacks every 100 steps (10Hz) to minimize interference
+            if cb_counter % 100 == 0:
                 rclpy.spin_once(n, timeout_sec=0)
             if viewer is not None and cb_counter % 10 == 0:
                 viewer.sync()
@@ -176,7 +179,6 @@ def main(args=None):
                 _time.sleep(sl)
             else:
                 nt = _time.monotonic()
-                _time.sleep(0.0005)
     except KeyboardInterrupt:
         pass
     if viewer is not None:
