@@ -1,5 +1,9 @@
 """
-WLR MuJoCo simulation — Open-chain model with balance controller.
+WLR MuJoCo simulation — Open-chain model with VMC + LQR balance controller.
+Based on clearlab-sustech/Wheel-Legged-Gym approach.
+
+Controller: reads hip+knee angles, computes virtual leg (L0, theta0) via FK,
+applies PD in virtual space, maps to joint torques via Jacobian transpose.
 """
 
 import math, os, numpy as np
@@ -10,7 +14,25 @@ from sensor_msgs.msg import JointState, Imu
 from geometry_msgs.msg import Twist
 from rosgraph_msgs.msg import Clock
 
-L1, L2, OFFSET, WR = 0.07, 0.147, 0.0615, 0.05
+
+# Robot geometry (from clearlab-sustech/Wheel-Legged-Gym)
+L1 = 0.15       # upper link (m)
+L2 = 0.25       # lower link (m)
+OFFSET = 0.054  # hip X offset (m)
+WR = 0.05       # wheel radius (m)
+
+# Standing pose (from reference repo)
+HIP0 = 0.5      # initial hip angle (rad)
+KNEE0 = 0.35    # initial knee angle (rad)
+
+# VMC gains (tuned for stability)
+KP_L0 = 200.0    # leg length P
+KD_L0 = 15.0     # leg length D
+KP_THETA = 30.0  # leg angle P
+KD_THETA = 3.0   # leg angle D
+FFORCE = 20.0    # feedforward gravity force
+
+NAMES = ['L_hip_j', 'L_knee_j', 'L_wheel_j', 'R_hip_j', 'R_knee_j', 'R_wheel_j']
 
 
 class MuJoCoNode(Node):
@@ -33,11 +55,19 @@ class MuJoCoNode(Node):
         print(f'[mujoco_sim] Loading: {mp}', flush=True)
         self.m = mujoco.MjModel.from_xml_path(mp)
         self.d = mujoco.MjData(self.m)
+
+        # Set standing pose
+        for s in ['L', 'R']:
+            sgn = 1 if s == 'L' else -1
+            self.d.qpos[self._q(f'{s}_hip_j')] = HIP0 * sgn
+            self.d.qpos[self._q(f'{s}_knee_j')] = KNEE0 * sgn
+
         mujoco.mj_forward(self.m, self.d)
 
+        # Joint/sensor indices
         self.jq = {}
         self.jv = {}
-        for n in ['L_hip_j', 'L_knee_j', 'L_wheel_j', 'R_hip_j', 'R_knee_j', 'R_wheel_j']:
+        for n in NAMES:
             jid = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_JOINT, n)
             self.jq[n] = self.m.jnt_qposadr[jid]
             self.jv[n] = self.m.jnt_dofadr[jid]
@@ -47,20 +77,53 @@ class MuJoCoNode(Node):
         self.ga = sa[mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_SENSOR, 'gyro')]
         self.base_id = mujoco.mj_name2id(self.m, mujoco.mjtObj.mjOBJ_BODY, 'base')
 
+        # Compute nominal L0 at standing pose
+        self.l0_nom = self._fk('L')[0]
+        self.prev_l0 = {'L': self.l0_nom, 'R': self.l0_nom}
+        self.prev_th0 = {'L': 0.0, 'R': 0.0}
+        self.prev_l0dot = {'L': 0.0, 'R': 0.0}
+        self.prev_th0dot = {'L': 0.0, 'R': 0.0}
+
         self.speed = 0.0
         self.yaw = 0.0
         self.step = 0
 
+        # ROS
         self.jp = self.create_publisher(JointState, '/joint_states', 10)
         self.ip = self.create_publisher(Imu, '/imu/data', 10)
         self.cp = self.create_publisher(Clock, '/clock', 10)
         self.create_subscription(Twist, '/cmd_vel', lambda m: (
             setattr(self, 'speed', m.linear.x), setattr(self, 'yaw', m.angular.z)), 10)
 
-        # Timer-driven simulation (no threading, no GIL issues)
-        self.create_timer(self.dt, self._step)
+        self._pub()
+        print(f'[mujoco_sim] Started {sr:.0f}Hz, L0_nom={self.l0_nom:.3f}', flush=True)
 
-        print(f'[mujoco_sim] Started {sr:.0f}Hz', flush=True)
+    def _q(self, n):
+        return self.jq[n]
+
+    def _fk(self, side):
+        """Open-chain FK: returns (L0, theta0, t1, t2) from hip+knee."""
+        sgn = 1 if side == 'L' else -1
+        hip = self.d.qpos[self.jq[f'{side}_hip_j']] * sgn
+        knee = self.d.qpos[self.jq[f'{side}_knee_j']] * sgn
+        t1 = hip
+        t2 = knee - math.pi / 2
+        ex = OFFSET + L1 * math.cos(t1) + L2 * math.cos(t1 + t2)
+        ey = -(L1 * math.sin(t1) + L2 * math.sin(t1 + t2))
+        L0 = math.sqrt(ex ** 2 + ey ** 2)
+        theta0 = math.atan2(ey, ex) - math.pi / 2
+        return L0, theta0, t1, t2
+
+    def _vmc(self, F, T, L0, theta0, t1, t2):
+        """Jacobian transpose: virtual force/torque → hip, knee torques."""
+        tp = theta0 + math.pi / 2
+        t11 = L1 * math.sin(tp - t1) - L2 * math.sin(t1 + t2 - tp)
+        t12 = (L1 * math.cos(tp - t1) - L2 * math.cos(t1 + t2 - tp)) / L0
+        t21 = -L2 * math.sin(t1 + t2 - tp)
+        t22 = -L2 * math.cos(t1 + t2 - tp) / L0
+        Th = t11 * F - t12 * T
+        Tk = t21 * F - t22 * T
+        return Th, Tk
 
     def _step(self):
         q = self.d.sensordata[self.qa:self.qa + 4]
@@ -71,24 +134,40 @@ class MuJoCoNode(Node):
         ctrl = np.zeros(6)
         for si, side in enumerate(['L', 'R']):
             sgn = 1 if side == 'L' else -1
-            hip = self.d.qpos[self.jq[f'{side}_hip_j']]
-            knee = self.d.qpos[self.jq[f'{side}_knee_j']]
-            hip_v = self.d.qvel[self.jv[f'{side}_hip_j']]
-            knee_v = self.d.qvel[self.jv[f'{side}_knee_j']]
             wv = self.d.qvel[self.jv[f'{side}_wheel_j']]
 
-            wheel_t = -80 * pitch - 10 * dpitch - 0.5 * wv
-            wheel_t += self.speed * 5 + self.yaw * 2 * sgn
-            hip_t = -10 * hip_v
-            knee_t = 200 * (0 - knee) - 30 * knee_v - 2.0
+            # FK
+            L0, theta0, t1, t2 = self._fk(side)
 
-            hip_t = max(-10, min(10, hip_t))
-            knee_t = max(-30, min(30, knee_t))
-            wheel_t = max(-10, min(10, wheel_t))
+            # Virtual leg velocity (numerical differentiation with smoothing)
+            dL0 = (L0 - self.prev_l0[side]) / self.dt
+            dth0 = (theta0 - self.prev_th0[side]) / self.dt
+            self.prev_l0[side] = L0
+            self.prev_th0[side] = theta0
 
-            ctrl[si * 3] = hip_t
-            ctrl[si * 3 + 1] = knee_t
-            ctrl[si * 3 + 2] = wheel_t
+            # Virtual leg PD (from reference repo)
+            F = KP_L0 * (self.l0_nom - L0) - KD_L0 * dL0 + FFORCE
+            T = KP_THETA * (0 - theta0) - KD_THETA * dth0
+            T += 15 * pitch + 3 * dpitch  # pitch correction from IMU
+
+            F = max(-60, min(60, F))
+            T = max(-15, min(15, T))
+
+            # Jacobian → joint torques
+            Th, Tk = self._vmc(F, T, L0, theta0, t1, t2)
+
+            # Wheel torque
+            Tw = self.speed * 8 - 0.5 * wv + self.yaw * 3 * sgn
+            Tw = max(-10, min(10, Tw))
+
+            # Mirror for right leg
+            Th *= sgn
+            Tk *= sgn
+
+            b = si * 3
+            ctrl[b] = max(-10, min(10, Th))
+            ctrl[b + 1] = max(-10, min(10, Tk))
+            ctrl[b + 2] = Tw
 
         if abs(pitch) > 1.3:
             ctrl[:] = 0
@@ -105,11 +184,9 @@ class MuJoCoNode(Node):
         m = JointState()
         m.header.stamp = t
         m.name = ['left_hip', 'left_knee', 'left_wheel', 'right_hip', 'right_knee', 'right_wheel']
-        m.position = [self.d.qpos[self.jq[n]] for n in
-                      ['L_hip_j', 'L_knee_j', 'L_wheel_j', 'R_hip_j', 'R_knee_j', 'R_wheel_j']]
-        m.velocity = [self.d.qvel[self.jv[n]] for n in
-                       ['L_hip_j', 'L_knee_j', 'L_wheel_j', 'R_hip_j', 'R_knee_j', 'R_wheel_j']]
-        m.effort = [0.0] * 6
+        m.position = [self.d.qpos[self.jq[n]] for n in NAMES]
+        m.velocity = [self.d.qvel[self.jv[n]] for n in NAMES]
+        m.effort = [self.d.ctrl[i] for i in range(6)]
         self.jp.publish(m)
 
         im = Imu()
@@ -136,12 +213,10 @@ def main(args=None):
     n = MuJoCoNode()
     import time as _time
     try:
-        # Run simulation at precise 1kHz, process ROS callbacks every 5ms
         nt = _time.monotonic()
         cb_counter = 0
         while rclpy.ok():
             n._step()
-            # Process ROS callbacks every 5 steps (200Hz) to reduce overhead
             cb_counter += 1
             if cb_counter % 5 == 0:
                 rclpy.spin_once(n, timeout_sec=0)
