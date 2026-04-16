@@ -1,7 +1,5 @@
 <mujoco model="wlr_robot">
-  <!-- WLR Robot — Exact parameters from clearlab-sustech/Wheel-Legged-Gym
-       l1=0.15, l2=0.25, offset=0.054, standing: hip=0.5, knee=0.35
-  -->
+  <!-- WLR Robot — Open-chain model with PD balance controller -->
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.001" gravity="0 0 -9.81" solver="Newton" iterations="100"/>
   <default>
@@ -15,23 +13,22 @@
   </asset>
   <worldbody>
     <geom name="floor" type="plane" size="10 10 0.1" material="grid" friction="1.5 0.005 0.001"/>
-    <!-- Body height = leg_length + wheel_r ≈ 0.40 + 0.05 = 0.45 at standing pose -->
-    <body name="base" pos="0 0 0.45">
+    <body name="base" pos="0 0 0.267">
       <freejoint/>
-      <inertial mass="1.2" pos="0 0 0" diaginertia="0.003 0.005 0.007"/>
-      <geom type="box" size="0.1 0.08 0.02" rgba="0.3 0.3 0.3 1"/>
+      <inertial mass="1.0" pos="0 0 0" diaginertia="0.002 0.003 0.005"/>
+      <geom type="box" size="0.105 0.0775 0.015" rgba="0.3 0.3 0.3 1"/>
       <site name="imu" pos="0 0 0"/>
-      <!-- LEFT LEG: l1=0.15, l2=0.25 -->
-      <body name="L_hip" pos="0.054 0.08 0">
+      <!-- LEFT LEG -->
+      <body name="L_hip" pos="0.0615 0.0875 0">
         <joint name="L_hip_j" type="hinge" axis="0 1 0" range="-1.5 1.5" damping="0.05"/>
-        <inertial mass="0.05" pos="0 0 -0.075" diaginertia="8e-5 8e-5 2e-6"/>
-        <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.008" rgba="0.2 0.4 0.8 1"/>
-        <body name="L_knee" pos="0 0 -0.15">
+        <inertial mass="0.04" pos="0 0 -0.035" diaginertia="1e-5 1e-5 1e-6"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.07" size="0.008" rgba="0.2 0.4 0.8 1"/>
+        <body name="L_knee" pos="0 0 -0.07">
           <joint name="L_knee_j" type="hinge" axis="0 1 0" range="-3.14 3.14" damping="0.05"/>
-          <inertial mass="0.08" pos="0 0 -0.125" diaginertia="3e-4 3e-4 5e-6"/>
-          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.008" rgba="0.7 0.7 0.7 1"/>
-          <body name="L_wheel" pos="0 0 -0.25">
-            <joint name="L_wheel_j" type="hinge" axis="0 1 0" damping="0.02"/>
+          <inertial mass="0.072" pos="0 0 -0.0735" diaginertia="1.3e-4 1.3e-4 2.3e-6"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.147" size="0.008" rgba="0.7 0.7 0.7 1"/>
+          <body name="L_wheel" pos="0 0 -0.147">
+            <joint name="L_wheel_j" type="hinge" axis="0 1 0" damping="0.01"/>
             <inertial mass="0.34" pos="0 0 0" diaginertia="2.3e-4 4.25e-4 2.3e-4"/>
             <geom type="cylinder" fromto="0 -0.0125 0 0 0.0125 0" size="0.05"
                   rgba="0.15 0.15 0.15 1" friction="1.5 0.005 0.001"/>
@@ -39,16 +36,16 @@
         </body>
       </body>
       <!-- RIGHT LEG -->
-      <body name="R_hip" pos="0.054 -0.08 0">
+      <body name="R_hip" pos="0.0615 -0.0875 0">
         <joint name="R_hip_j" type="hinge" axis="0 1 0" range="-1.5 1.5" damping="0.05"/>
-        <inertial mass="0.05" pos="0 0 -0.075" diaginertia="8e-5 8e-5 2e-6"/>
-        <geom type="capsule" fromto="0 0 0 0 0 -0.15" size="0.008" rgba="0.2 0.4 0.8 1"/>
-        <body name="R_knee" pos="0 0 -0.15">
+        <inertial mass="0.04" pos="0 0 -0.035" diaginertia="1e-5 1e-5 1e-6"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.07" size="0.008" rgba="0.2 0.4 0.8 1"/>
+        <body name="R_knee" pos="0 0 -0.07">
           <joint name="R_knee_j" type="hinge" axis="0 1 0" range="-3.14 3.14" damping="0.05"/>
-          <inertial mass="0.08" pos="0 0 -0.125" diaginertia="3e-4 3e-4 5e-6"/>
-          <geom type="capsule" fromto="0 0 0 0 0 -0.25" size="0.008" rgba="0.7 0.7 0.7 1"/>
-          <body name="R_wheel" pos="0 0 -0.25">
-            <joint name="R_wheel_j" type="hinge" axis="0 1 0" damping="0.02"/>
+          <inertial mass="0.072" pos="0 0 -0.0735" diaginertia="1.3e-4 1.3e-4 2.3e-6"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.147" size="0.008" rgba="0.7 0.7 0.7 1"/>
+          <body name="R_wheel" pos="0 0 -0.147">
+            <joint name="R_wheel_j" type="hinge" axis="0 1 0" damping="0.01"/>
             <inertial mass="0.34" pos="0 0 0" diaginertia="2.3e-4 4.25e-4 2.3e-4"/>
             <geom type="cylinder" fromto="0 -0.0125 0 0 0.0125 0" size="0.05"
                   rgba="0.15 0.15 0.15 1" friction="1.5 0.005 0.001"/>
@@ -59,10 +56,10 @@
   </worldbody>
   <actuator>
     <motor name="L_hip_m"   joint="L_hip_j"   gear="1" ctrlrange="-10 10" ctrllimited="true"/>
-    <motor name="L_knee_m"  joint="L_knee_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
+    <motor name="L_knee_m"  joint="L_knee_j"  gear="1" ctrlrange="-30 30" ctrllimited="true"/>
     <motor name="L_wheel_m" joint="L_wheel_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
     <motor name="R_hip_m"   joint="R_hip_j"   gear="1" ctrlrange="-10 10" ctrllimited="true"/>
-    <motor name="R_knee_m"  joint="R_knee_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
+    <motor name="R_knee_m"  joint="R_knee_j"  gear="1" ctrlrange="-30 30" ctrllimited="true"/>
     <motor name="R_wheel_m" joint="R_wheel_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
   </actuator>
   <sensor>
