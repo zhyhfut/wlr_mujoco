@@ -15,7 +15,7 @@
     <geom name="floor" type="plane" size="10 10 0.1" material="grid" friction="1.5 0.005 0.001"/>
     <body name="base" pos="0 0 0.267">
       <freejoint/>
-      <inertial mass="0.7" pos="0 0 0" diaginertia="0.001 0.002 0.003"/>
+      <inertial mass="0.5" pos="0 0 0" diaginertia="0.001 0.002 0.003"/>
       <geom type="box" size="0.105 0.0775 0.015" rgba="0.3 0.3 0.3 1"/>
       <site name="imu" pos="0 0 0"/>
       <!-- LEFT LEG -->
