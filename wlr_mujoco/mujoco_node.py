@@ -82,8 +82,10 @@ class MuJoCoNode(Node):
             wv = self.d.qvel[self.jv[f'{side}_wheel_j']]
             hip_v = self.d.qvel[self.jv[f'{side}_hip_j']]
 
-            # Wheel: pitch control
-            wheel_t = -40 * pitch - 10 * dpitch - 0.5 * wv
+            # Wheel: LQR pitch control (computed from inverted pendulum model)
+            # State: [theta, dtheta], A=[[0,1],[mgl/I,0]], B=[[0],[l/(IR)]]
+            # Q=[[500,0],[0,10]], R=1 → K=[22.71, 3.18]
+            wheel_t = -22.7 * pitch - 3.2 * dpitch - 0.3 * wv
             wheel_t += self.speed * 5 + self.yaw * 2 * sgn
 
             # Hip: passive damping
