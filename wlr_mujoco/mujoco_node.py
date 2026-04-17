@@ -72,7 +72,6 @@ class MuJoCoNode(Node):
         pitch = math.asin(max(-1, min(1, 2 * (w * y - z * x))))
         dpitch = self.d.sensordata[self.ga + 1]
         body_z = self.d.xpos[self.base_id][2]
-        z_err = 0.08 - body_z
 
         ctrl = np.zeros(6)
         for si, side in enumerate(['L', 'R']):
@@ -91,8 +90,8 @@ class MuJoCoNode(Node):
             # Hip: passive damping
             hip_t = -10 * hip_v
 
-            # Knee: keep straight + height control
-            knee_t = 150 * (0 - knee) - 20 * knee_v + 30 * z_err
+            # Knee: keep straight + gravity compensation
+            knee_t = 200 * (0 - knee) - 30 * knee_v - 1.0
 
             hip_t = max(-10, min(10, hip_t))
             knee_t = max(-30, min(30, knee_t))
