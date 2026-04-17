@@ -15,7 +15,7 @@
     <geom name="floor" type="plane" size="10 10 0.1" material="grid" friction="1.5 0.005 0.001"/>
     <body name="base" pos="0 0 0.267">
       <freejoint/>
-      <inertial mass="1.0" pos="0 0 0" diaginertia="0.002 0.003 0.005"/>
+      <inertial mass="0.7" pos="0 0 0" diaginertia="0.001 0.002 0.003"/>
       <geom type="box" size="0.105 0.0775 0.015" rgba="0.3 0.3 0.3 1"/>
       <site name="imu" pos="0 0 0"/>
       <!-- LEFT LEG -->
@@ -56,10 +56,10 @@
   </worldbody>
   <actuator>
     <motor name="L_hip_m"   joint="L_hip_j"   gear="1" ctrlrange="-10 10" ctrllimited="true"/>
-    <motor name="L_knee_m"  joint="L_knee_j"  gear="1" ctrlrange="-30 30" ctrllimited="true"/>
+    <motor name="L_knee_m"  joint="L_knee_j"  gear="1" ctrlrange="-50 50" ctrllimited="true"/>
     <motor name="L_wheel_m" joint="L_wheel_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
     <motor name="R_hip_m"   joint="R_hip_j"   gear="1" ctrlrange="-10 10" ctrllimited="true"/>
-    <motor name="R_knee_m"  joint="R_knee_j"  gear="1" ctrlrange="-30 30" ctrllimited="true"/>
+    <motor name="R_knee_m"  joint="R_knee_j"  gear="1" ctrlrange="-50 50" ctrllimited="true"/>
     <motor name="R_wheel_m" joint="R_wheel_j"  gear="1" ctrlrange="-10 10" ctrllimited="true"/>
   </actuator>
   <sensor>
